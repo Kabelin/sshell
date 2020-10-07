@@ -5,13 +5,60 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 
+void
+changeDir(char *input) {
+  // checks if chdir fails
+  if(chdir(input) != 0) {
+    perror("chdir() to desired path failed");
+    exit(-1);
+  }
+}
+
+void
+getHostname(char *host) {
+  // get the hostname properly for Linux
+  if (gethostname(host, sizeof(host)) != 0) { // success = 0, failure = -1
+    perror("Host name couldn't be found");
+    exit(-1);
+  }
+}
+
+int
+parseString(char *string, char **args, int *lastPointer) {
+  char *token;
+  int i = 0;
+  // initializes the tokenization
+  token = strtok(string, " \n");
+    // until the last character
+    while(token != NULL)
+    {
+      args[i] = strdup(token);
+      i++;
+      token = strtok(NULL, " \n");
+    }
+  args[i] = NULL;
+  if(i > *lastPointer) return i;
+  else return *lastPointer;
+}
+
+int
+readCommand(char *host, char **args, int *lastPointer) {
+  char pwd[100], input[100];
+  
+  // prints the hostname and computername
+  printf("%s@%s:%s> ", getenv("USER"), host, getcwd(pwd, sizeof(pwd)));
+  // gets the input string
+  fgets(input, sizeof(input), stdin);
+  // calls the parser function
+  return parseString(input, args, lastPointer);
+}
+
 int
 main(int argc, char *argv[])
 {
-
-  char pwd[100], s[100], host[100], input[100];
-  char *token, *args[50];
-  int i;
+  char p[100], host[100];
+  char *args[50];
+  int lastPointer = 0;
   pid_t rc;
 
   if(argc >= 3) {
@@ -20,77 +67,37 @@ main(int argc, char *argv[])
     exit(-1);
   } else if(argc == 2) {
     // initializes with a pwd
-    strcpy(s, argv[1]);
+    strcpy(p, argv[1]);
   } else {
-    // gets the pwd inserted
+    // gets the path inserted
     printf("Insert the desired path working directory: ");
-    scanf("%s", s);
+    scanf("%s", p);
     getchar();
   }
+
+  changeDir(p);
+  getHostname(host);
   
-  // checks if chdir fails
-  if(chdir(s) != 0) {
-    perror("chdir() to desired path failed");
-    exit(-1);
-  }
-  
-  while(1) {
-    i = 0;
-    // get the hostname properly for Linux
-    if (gethostname(host, sizeof(host)) != 0) { // success = 0, failure = -1
-      perror("Host name couldn't be found");
-      exit(-1);
-    }
+  do {
+    lastPointer = readCommand(host, args, &lastPointer);
+    printf("Last pointer: %d\n", lastPointer);
 
-    printf("%s@%s:%s> ", getenv("USER"), host, getcwd(pwd, sizeof(pwd)));
-    fgets(input, sizeof(input), stdin);
-    token = strtok(input, " \n");
-
-    if(strcmp(token, "cd") == 0) {
-      i = 2;
-      args[0] = strdup(token);
-      while(token != NULL)
-      {
-        if(token != NULL) args[1] = strcat(args[1], token);
-        printf("%s\n", args[1]);
-        token = strtok(NULL, "\n");
-      }
-    }
-    else {
-      while(token != NULL)
-      {
-        args[i] = strdup(token);
-        i++;
-        token = strtok(NULL, " \n");
-      }
-    }
-    args[i] = NULL;
-
-    if(strcmp(args[0], "exit") == 0 || strcmp(args[0], "quit") == 0) exit(1);
-    
     rc = fork();
     
     if(rc < 0) {
       perror("fork failed");
       exit(1);
     } else if(rc == 0) {
-      if(strcmp(args[0], "cd") == 0) {
-        printf("desired path: %s\n", args[1]);
-        if(chdir(args[1]) != 0) {
-          perror("chdir() to desired path failed");
-          exit(-1);
-        }
-      }
-      else if(execvp(args[0], args) == -1) {
+      if(execvp(args[0], args) == -1) {
         perror("exec failed");
         exit(1);
       }
-    } 
-    wait(&rc);
-  }
-  
-  for(int j = 0; args[j] != NULL; j++) 
-  {
+    } else {
+      wait(&rc);
+    }
+  } while(strcmp(args[0], "exit") != 0 && strcmp(args[0], "quit") != 0);
+
+  for(int j = 0; j <= lastPointer; j++) {
     free(args[j]);
   }
 
