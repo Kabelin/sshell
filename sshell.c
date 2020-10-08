@@ -53,13 +53,29 @@ readCommand(char *host, char **args, int *lastPointer) {
   return parseString(input, args, lastPointer);
 }
 
+void
+createChild(char **args) {
+  pid_t rc = fork();
+    
+  if(rc < 0) {
+    perror("fork failed");
+    exit(1);
+  } else if(rc == 0) {
+    if(execvp(args[0], args) == -1) {
+      perror("exec failed");
+      exit(1);
+    }
+  } else {
+    wait(&rc);
+  }
+}
+
 int
 main(int argc, char *argv[])
 {
   char p[100], host[100];
   char *args[50];
   int lastPointer = 0;
-  pid_t rc;
 
   if(argc >= 3) {
     // checks if initialization is correct
@@ -79,27 +95,16 @@ main(int argc, char *argv[])
   getHostname(host);
   
   do {
+    // save the value of last pointer allocated
     lastPointer = readCommand(host, args, &lastPointer);
-    printf("Last pointer: %d\n", lastPointer);
-
-    rc = fork();
-    
-    if(rc < 0) {
-      perror("fork failed");
-      exit(1);
-    } else if(rc == 0) {
-      if(execvp(args[0], args) == -1) {
-        perror("exec failed");
-        exit(1);
-      }
-    } else {
-      wait(&rc);
-    }
+    // calls for a new child process and executes the command
+    createChild(args);
+    // exit commands
   } while(strcmp(args[0], "exit") != 0 && strcmp(args[0], "quit") != 0);
 
+  // freeing allocated memory used for strdup
   for(int j = 0; j <= lastPointer; j++) {
     free(args[j]);
   }
-
   return 0;
 }
