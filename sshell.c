@@ -23,16 +23,30 @@ getHostname(char *host) {
   }
 }
 
+void
+strealloc(char **args, char *string, int i)
+{
+    size_t n = strlen(string) + 1;
+    args[i] = (char *) realloc(args[i], n);
+    if (args[i])
+      memcpy(args[i], string, n);
+    else {
+      perror("realloc failed");
+      exit(1);
+    }
+}
+
 int
 parseString(char *string, char **args, int *lastPointer) {
   char *token;
   int i = 0;
+
   // initializes the tokenization
   token = strtok(string, " \n");
     // until the last character
     while(token != NULL)
     {
-      args[i] = strdup(token);
+      strealloc(args, token, i);
       i++;
       token = strtok(NULL, " \n");
     }
@@ -74,7 +88,7 @@ int
 main(int argc, char *argv[])
 {
   char p[100], host[100];
-  char *args[50];
+  char *args[100] = {NULL};
   int lastPointer = 0;
 
   if(argc >= 3) {
@@ -97,12 +111,14 @@ main(int argc, char *argv[])
   do {
     // save the value of last pointer allocated
     lastPointer = readCommand(host, args, &lastPointer);
+    // stop condition
+    if(strcmp(args[0], "exit") == 0 || strcmp(args[0], "quit") == 0) break;
     // calls for a new child process and executes the command
     createChild(args);
     // exit commands
-  } while(strcmp(args[0], "exit") != 0 && strcmp(args[0], "quit") != 0);
+  } while(1);
 
-  // freeing allocated memory used for strdup
+  // freeing allocated memory used for strealloc
   for(int j = 0; j <= lastPointer; j++) {
     free(args[j]);
   }
